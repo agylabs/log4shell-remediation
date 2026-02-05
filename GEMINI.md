@@ -129,6 +129,26 @@ A realistic Spring Boot application demonstrating common enterprise patterns:
 
 ---
 
+## Development Workflow
+
+To ensure code quality and maintain a clean project history, follow these version control best practices:
+
+### Branching Strategy
+- **Feature Branches**: NEVER make changes directly to the `main` branch. All development work must be performed in dedicated feature or bugfix branches (e.g., `feature/remediate-log4j` or `fix/auth-leak`).
+- **Branch Naming**: Use descriptive names that reflect the task.
+
+### Commit Practices
+- **Frequent Commits**: Make small, frequent commits that represent logical units of work. This makes debugging and code reviews much easier.
+- **Commit Messages**: Write clear, concise commit messages. Use the imperative mood (e.g., "Update Log4j to 2.17.1" instead of "Updated Log4j..."). Explain *why* the change was made if it's not obvious.
+- **Atomic Commits**: Each commit should ideally address a single concern.
+
+### Pull Requests & Review
+- **Pull Requests**: Submit changes via Pull Requests (PRs) to the `main` branch.
+- **Code Review**: Ensure all PRs are reviewed and pass CI/CD checks before merging.
+- **Squash & Merge**: Consider squashing commits when merging to keep the `main` history clean.
+
+---
+
 ## Technical Architecture
 
 ### Before Remediation
@@ -376,6 +396,7 @@ This demo showcases Antigravity's ability to:
 ## Repository Information
 
 - **Repository Name**: `log4shell-remediation`
+- **Repository URL**: https://github.com/agylabs/log4shell-remediation
 - **Organization**: `agylabs`
 - **Visibility**: Public
 - **License**: Apache 2.0
