@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Security Configuration for Defense-in-Depth
+    
+    This file contains additional security configurations that can be applied
+    at the JVM or container level for maximum protection against Log4Shell
+    and similar vulnerabilities.
+-->
+<security-config>
+    <!--
+        JVM Arguments for Log4Shell Mitigation
+        Add these to your startup script or container configuration
+    -->
+    <jvm-arguments>
+        <!-- Primary mitigation: Disable message lookups -->
+        <argument>-Dlog4j2.formatMsgNoLookups=true</argument>
+        
+        <!-- Additional mitigation: Disable all lookups -->
+        <argument>-Dlog4j2.msgNoLookups=true</argument>
+        
+        <!-- Prevent JNDI from loading remote classes -->
+        <argument>-Dcom.sun.jndi.ldap.object.trustURLCodebase=false</argument>
+        <argument>-Dcom.sun.jndi.rmi.object.trustURLCodebase=false</argument>
+        <argument>-Dcom.sun.jndi.cosnaming.object.trustURLCodebase=false</argument>
+        
+        <!-- Restrict JNDI protocols (Java 8u191+, Java 11.0.1+) -->
+        <argument>-Djdk.jndi.ldap.object.factories.filter=*</argument>
+        <argument>-Djdk.jndi.rmi.object.factories.filter=*</argument>
+    </jvm-arguments>
+    
+    <!--
+        Runtime Application Self-Protection (RASP) Rules
+        These rules can be configured in your RASP solution
+    -->
+    <rasp-rules>
+        <rule name="Block JNDI Lookups">
+            <description>Block any attempt to perform JNDI lookups</description>
+            <pattern>javax.naming.InitialContext.lookup</pattern>
+            <action>BLOCK</action>
+        </rule>
+        
+        <rule name="Block Log4j Remote Loading">
+            <description>Block attempts to load classes from remote URLs during logging</description>
+            <pattern>org.apache.logging.log4j.core.lookup.JndiLookup</pattern>
+            <action>BLOCK</action>
+        </rule>
+    </rasp-rules>
+    
+    <!--
+        Web Application Firewall (WAF) Rules
+        These patterns should be blocked at the WAF level
+    -->
+    <waf-rules>
+        <!-- Basic JNDI patterns -->
+        <pattern>\$\{jndi:</pattern>
+        <pattern>\$\{lower:j\}</pattern>
+        <pattern>\$\{upper:j\}</pattern>
+        
+        <!-- Obfuscated patterns -->
+        <pattern>\$\{::-j\}</pattern>
+        <pattern>\$\{env:</pattern>
+        <pattern>\$\{sys:</pattern>
+        <pattern>\$\{java:</pattern>
+        <pattern>\$\{date:</pattern>
+        <pattern>\$\{ctx:</pattern>
+        <pattern>\$\{main:</pattern>
+        <pattern>\$\{marker:</pattern>
+        <pattern>\$\{bundle:</pattern>
+        <pattern>\$\{log4j:</pattern>
+        
+        <!-- URL-encoded patterns -->
+        <pattern>%24%7Bjndi:</pattern>
+        <pattern>%24%7Blower:</pattern>
+        
+        <!-- Unicode/hex encoded patterns -->
+        <pattern>\u0024\u007b</pattern>
+    </waf-rules>
+    
+    <!--
+        Network Egress Rules
+        Block outbound connections that could be exploited
+    -->
+    <network-rules>
+        <rule name="Block LDAP Egress">
+            <description>Block outbound LDAP connections to untrusted hosts</description>
+            <ports>389,636,1389,10389</ports>
+            <action>BLOCK except for allowlisted destinations</action>
+        </rule>
+        
+        <rule name="Block RMI Egress">
+            <description>Block outbound RMI connections to untrusted hosts</description>
+            <ports>1099</ports>
+            <action>BLOCK except for allowlisted destinations</action>
+        </rule>
+        
+        <rule name="Block DNS to non-corporate servers">
+            <description>Prevent DNS exfiltration via Log4Shell</description>
+            <ports>53,5353</ports>
+            <action>Allow only to corporate DNS servers</action>
+        </rule>
+    </network-rules>
+    
+    <!--
+        Container Security (if using Docker/Kubernetes)
+    -->
+    <container-security>
+        <!-- Dockerfile additions -->
+        <dockerfile>
+            # Add security JVM arguments
+            ENV JAVA_OPTS="-Dlog4j2.formatMsgNoLookups=true -Dcom.sun.jndi.ldap.object.trustURLCodebase=false"
+            
+            # Run as non-root user
+            USER 1000
+            
+            # Read-only filesystem where possible
+            # Drop all capabilities and add only what's needed
+        </dockerfile>
+        
+        <!-- Kubernetes SecurityContext -->
+        <kubernetes-security-context>
+            <runAsNonRoot>true</runAsNonRoot>
+            <runAsUser>1000</runAsUser>
+            <readOnlyRootFilesystem>true</readOnlyRootFilesystem>
+            <allowPrivilegeEscalation>false</allowPrivilegeEscalation>
+            <capabilities>
+                <drop>ALL</drop>
+            </capabilities>
+        </kubernetes-security-context>
+        
+        <!-- Network Policy -->
+        <network-policy>
+            <egress-restrictions>
+                <!-- Restrict egress to only necessary services -->
+                <allow>database-service:5432</allow>
+                <allow>redis-service:6379</allow>
+                <deny>0.0.0.0/0:389</deny>  <!-- Block LDAP -->
+                <deny>0.0.0.0/0:1099</deny> <!-- Block RMI -->
+            </egress-restrictions>
+        </network-policy>
+    </container-security>
+    
+    <!--
+        Monitoring and Alerting
+    -->
+    <monitoring>
+        <log-patterns-to-alert>
+            <!-- Alert on any attempt to use JNDI lookups -->
+            <pattern severity="CRITICAL">\$\{jndi:</pattern>
+            <pattern severity="HIGH">\$\{env:</pattern>
+            <pattern severity="HIGH">\$\{sys:</pattern>
+            <pattern severity="MEDIUM">SECURITY ALERT</pattern>
+        </log-patterns-to-alert>
+        
+        <metrics-to-monitor>
+            <!-- Monitor for unusual patterns -->
+            <metric name="log4j.lookup.attempts" alert-threshold="0"/>
+            <metric name="outbound.ldap.connections" alert-threshold="0"/>
+            <metric name="classloading.remote.attempts" alert-threshold="0"/>
+        </metrics-to-monitor>
+    </monitoring>
+</security-config>

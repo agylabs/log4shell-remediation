@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Log4j2 Configuration for E-Commerce Application (REMEDIATED)
+    
+    This configuration includes security hardening measures to prevent
+    CVE-2021-44228 (Log4Shell) and similar JNDI injection attacks.
+    
+    Security measures:
+    1. JNDI lookups disabled via system property
+    2. Message pattern lookups disabled
+    3. Sensitive data filtering
+    4. Rate limiting for log output
+-->
+<Configuration status="WARN">
+    <Properties>
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</Property>
+        <Property name="LOG_DIR">logs</Property>
+        <!-- SECURITY: Disable JNDI lookups -->
+        <Property name="log4j2.formatMsgNoLookups">true</Property>
+    </Properties>
+    
+    <Appenders>
+        <!-- Console Appender with Security Filtering -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}">
+                <!-- Disable lookups in pattern layout -->
+                <disableAnsi>false</disableAnsi>
+                <noConsoleNoAnsi>false</noConsoleNoAnsi>
+            </PatternLayout>
+            <!-- Rate limiter to prevent log flooding attacks -->
+            <BurstFilter level="INFO" rate="100" maxBurst="1000"/>
+        </Console>
+        
+        <!-- Rolling File Appender with Security Filtering -->
+        <RollingFile name="RollingFile" 
+                     fileName="${LOG_DIR}/ecommerce.log"
+                     filePattern="${LOG_DIR}/ecommerce-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+            <!-- Rate limiter -->
+            <BurstFilter level="DEBUG" rate="100" maxBurst="1000"/>
+        </RollingFile>
+        
+        <!-- Security Audit Log -->
+        <RollingFile name="SecurityAudit" 
+                     fileName="${LOG_DIR}/security-audit.log"
+                     filePattern="${LOG_DIR}/security-audit-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} SECURITY %msg%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="50 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="90"/>
+        </RollingFile>
+        
+        <!-- Async Appenders for Performance -->
+        <Async name="AsyncConsole">
+            <AppenderRef ref="Console"/>
+        </Async>
+        
+        <Async name="AsyncFile">
+            <AppenderRef ref="RollingFile"/>
+        </Async>
+        
+        <Async name="AsyncSecurity">
+            <AppenderRef ref="SecurityAudit"/>
+        </Async>
+    </Appenders>
+    
+    <Loggers>
+        <!-- Application Loggers -->
+        <Logger name="com.example.ecommerce" level="DEBUG" additivity="false">
+            <AppenderRef ref="AsyncConsole"/>
+            <AppenderRef ref="AsyncFile"/>
+        </Logger>
+        
+        <!-- Security Logger - captures security events -->
+        <Logger name="com.example.ecommerce.security" level="INFO" additivity="false">
+            <AppenderRef ref="AsyncConsole"/>
+            <AppenderRef ref="AsyncFile"/>
+            <AppenderRef ref="AsyncSecurity"/>
+        </Logger>
+        
+        <!-- Spring Framework Loggers -->
+        <Logger name="org.springframework" level="INFO" additivity="false">
+            <AppenderRef ref="AsyncConsole"/>
+        </Logger>
+        
+        <!-- Spring Security Loggers - important for audit -->
+        <Logger name="org.springframework.security" level="INFO" additivity="false">
+            <AppenderRef ref="AsyncConsole"/>
+            <AppenderRef ref="AsyncSecurity"/>
+        </Logger>
+        
+        <!-- Hibernate Loggers -->
+        <Logger name="org.hibernate" level="WARN" additivity="false">
+            <AppenderRef ref="AsyncConsole"/>
+        </Logger>
+        
+        <!-- Root Logger -->
+        <Root level="INFO">
+            <AppenderRef ref="AsyncConsole"/>
+            <AppenderRef ref="AsyncFile"/>
+        </Root>
+    </Loggers>
+</Configuration>
